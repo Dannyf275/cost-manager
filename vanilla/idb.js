@@ -1,10 +1,9 @@
-// idb.js - גרסת Vanilla JS להגשה
-// קובץ זה זהה לוגית לקובץ ב-React, אך ללא מודולים, כדי שניתן יהיה להריץ אותו בקובץ HTML רגיל.
+// idb.js - Vanilla Version (Final Submission)
 
 const idb = {
   db: null,
 
-  // פתיחת DB
+  // 1. פתיחת מסד הנתונים
   openCostsDB: function (databaseName, databaseVersion) {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(databaseName, databaseVersion);
@@ -27,7 +26,7 @@ const idb = {
     });
   },
 
-  // הוספת הוצאה
+  // 2. הוספת הוצאה
   addCost: function (cost) {
     return new Promise((resolve, reject) => {
       if (!this.db) {
@@ -59,7 +58,7 @@ const idb = {
     });
   },
 
-  // הפקת דוח
+  // 3. הפקת דוח (כולל לוגיקת המרה בחישוב ה-Total בלבד)
   getReport: async function (year, month, targetCurrency) {
     if (!this.db) return { costs: [], total: { currency: targetCurrency, total: 0 }};
 
@@ -72,13 +71,15 @@ const idb = {
       request.onerror = () => reject(request.error);
     });
 
+    // סינון לפי שנה וחודש
     const filteredCosts = allCosts.filter(cost => 
       cost.year === year && cost.month === month
     );
 
+    // --- לוגיקת משיכת שערים (חשוב מאוד גם ב-Vanilla) ---
     let rates = { "USD": 1, "ILS": 3.4, "EURO": 0.7, "GBP": 0.6 };
     
-    // ניסיון לקרוא מ-localStorage אם אנחנו בסביבת דפדפן תומכת
+    // בדיקה אם יש URL ב-localStorage (אם הדפדפן תומך)
     if (typeof localStorage !== 'undefined') {
         const apiUrl = localStorage.getItem("exchangeRatesUrl");
         if (apiUrl) {
@@ -87,22 +88,29 @@ const idb = {
                 if (response.ok) {
                     rates = await response.json();
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { 
+                console.error("Error fetching rates in vanilla idb", e); 
+            }
         }
     }
+    // ---------------------------------------------------
 
     let totalSum = 0;
 
     filteredCosts.forEach(cost => {
       const rate = rates[cost.currency] || 1; 
+      // המרה לדולר
       const costInUSD = cost.sum / rate;
+      // המרה למטבע היעד
       const costInTarget = costInUSD * rates[targetCurrency];
+      
       totalSum += costInTarget;
     });
 
     return {
       year: year,
       month: month,
+      // כאן אנחנו מחזירים את האובייקטים המקוריים כפי שנדרש במסמך
       costs: filteredCosts.map(c => ({
           sum: c.sum,
           currency: c.currency,

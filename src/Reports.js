@@ -1,62 +1,57 @@
 // src/Reports.js
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Grid, Paper, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-// ייבוא רכיבי הגרפים
 import { PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from 'recharts';
 import { idb } from './idb';
 
+// קבועים לחודשים וצבעים
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const YEARS = [2023, 2024, 2025, 2026];
-// פלטת צבעים עבור ה-Pie Chart
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF4560'];
 
 export default function Reports({ refreshTrigger }) {
-    // State לבחירת שנה וחודש לתצוגה
+    // --- State Variables ---
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-    
-    // State להחזקת הנתונים המעובדים עבור הגרפים
-    const [pieData, setPieData] = useState([]);
-    const [barData, setBarData] = useState([]);
+    const [pieData, setPieData] = useState([]); // נתונים לגרף עוגה
+    const [barData, setBarData] = useState([]); // נתונים לגרף עמודות
 
-    // useEffect המופעל בכל פעם שמשתנה השנה, החודש, או ה-Trigger שהגיע מהאפליקציה
+    // --- Data Fetching Logic ---
     useEffect(() => {
         const updateGraphData = async () => {
             try {
-                // --- חלק א': הכנת נתונים לגרף עוגה (Pie) ---
-                // שליפת הדוח לחודש הספציפי
-                const report = await idb.getReport(selectedYear, selectedMonth, "ILS");
+                // המטבע שאליו ננרמל את כל התצוגה (אפשר לשנות ל-"USD" אם רוצים)
+                const TARGET_CURRENCY = "ILS"; 
+
+                // --- 1. הכנת נתונים לגרף עוגה (Pie) ---
+                const report = await idb.getReport(selectedYear, selectedMonth, TARGET_CURRENCY);
                 const categoryMap = {};
                 
-                // סכימת ההוצאות לפי קטגוריות
                 report.costs.forEach(cost => {
-                    const val = Number(cost.sum);
-                    // אם הקטגוריה קיימת מוסיפים לה, אחרת יוצרים חדשה
+                    // תיקון חשוב: אנו משתמשים ב-calculatedSum המומר, ולא בסכום המקורי
+                    const val = Number(cost.calculatedSum); 
                     categoryMap[cost.category] = (categoryMap[cost.category] || 0) + val;
                 });
 
-                // המרת האובייקט למערך שהגרף יודע לקרוא
+                // המרה למבנה ש-Recharts מבין
                 const pData = Object.keys(categoryMap).map(cat => ({
                     name: cat,
-                    value: categoryMap[cat]
+                    value: parseFloat(categoryMap[cat].toFixed(2))
                 }));
                 setPieData(pData);
 
-                // --- חלק ב': הכנת נתונים לגרף עמודות (Bar) ---
-                // שליפת כל ההוצאות של השנה
-                const yearlyCosts = await idb.getCostsByYear(selectedYear);
-                // יצירת מערך מאותחל באפסים עבור 12 חודשים
+                // --- 2. הכנת נתונים לגרף עמודות (Bar) ---
+                const yearlyCosts = await idb.getCostsByYear(selectedYear, TARGET_CURRENCY);
                 const monthlyTotals = Array(12).fill(0);
                 
                 yearlyCosts.forEach(cost => {
-                    // cost.month הוא 1-12, המערך הוא 0-11 ולכן מפחיתים 1
-                    monthlyTotals[cost.month - 1] += Number(cost.sum);
+                    // סכימת הערכים המומרים לכל חודש
+                    monthlyTotals[cost.month - 1] += Number(cost.calculatedSum);
                 });
 
-                // המרת המערך למבנה עבור הגרף (שם חודש + סכום)
                 const bData = monthlyTotals.map((total, index) => ({
-                    name: MONTHS[index].substring(0, 3), // שלושת האותיות הראשונות של החודש
-                    amount: total
+                    name: MONTHS[index].substring(0, 3), // קיצור שם החודש (Jan, Feb)
+                    amount: parseFloat(total.toFixed(2))
                 }));
                 setBarData(bData);
 
@@ -66,15 +61,16 @@ export default function Reports({ refreshTrigger }) {
         };
 
         updateGraphData();
-    }, [selectedYear, selectedMonth, refreshTrigger]); // התלויות של ה-Hook
+    }, [selectedYear, selectedMonth, refreshTrigger]);
 
+    // --- Rendering (התצוגה) ---
     return (
         <Box sx={{ mt: 5 }}>
             <Typography variant="h4" gutterBottom align="center" sx={{ mb: 4 }}>
-                Reports & Analytics
+                Reports & Analytics (ILS)
             </Typography>
 
-            {/* אזור הבחירה - שנה וחודש */}
+            {/* אזור הבחירה (Select) - שנה וחודש */}
             <Paper elevation={1} sx={{ p: 2, mb: 4, backgroundColor: '#f5f5f5' }}>
                 <Grid container spacing={2} justifyContent="center" alignItems="center">
                     <Grid item xs={12} md={3}>
@@ -96,21 +92,30 @@ export default function Reports({ refreshTrigger }) {
                 </Grid>
             </Paper>
 
-            <Grid container spacing={4}>
-                {/* גרף עוגה - רוחב מלא */}
+            {/* התיקון הגדול לגרפים:
+               Grid container עם direction="column".
+               זה מכריח את הגרפים להסתדר אחד מתחת לשני, ולתפוס את כל הרוחב הזמין.
+               כך הם לא נדחסים ולא נחתכים.
+            */}
+            <Grid container spacing={6} direction="column" alignItems="stretch">
+                
+                {/* --- גרף 1: עוגה (Pie Chart) --- */}
                 <Grid item xs={12}>
-                    <Paper elevation={3} sx={{ p: 3, height: 500, display: 'flex', flexDirection: 'column' }}>
+                    {/* גובה 600px נותן לגרף הרבה מקום */}
+                    <Paper elevation={3} sx={{ p: 3, height: 600, display: 'flex', flexDirection: 'column' }}>
                         <Typography align="center" variant="h6" gutterBottom>
                             Monthly Expenses Breakdown ({MONTHS[selectedMonth-1]})
                         </Typography>
+                        
                         <Box sx={{ flexGrow: 1, width: '100%', minHeight: 0 }}>
                             {pieData.length > 0 ? (
-                                <ResponsiveContainer>
+                                <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie 
                                             data={pieData} 
                                             cx="50%" 
                                             cy="50%" 
+                                            // החזרנו לרדיוס 150 כדי שהטקסטים בצדדים לא יחרגו מהמסגרת
                                             outerRadius={150} 
                                             fill="#8884d8" 
                                             dataKey="value" 
@@ -118,8 +123,8 @@ export default function Reports({ refreshTrigger }) {
                                         >
                                             {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                                         </Pie>
-                                        <Tooltip formatter={(value) => `${value.toFixed(2)}`} />
-                                        <Legend />
+                                        <Tooltip formatter={(value) => `${value} ILS`} />
+                                        <Legend verticalAlign="bottom" height={36}/>
                                     </PieChart>
                                 </ResponsiveContainer>
                             ) : (
@@ -131,21 +136,33 @@ export default function Reports({ refreshTrigger }) {
                     </Paper>
                 </Grid>
 
-                {/* גרף עמודות - רוחב מלא */}
+                {/* --- גרף 2: עמודות (Bar Chart) --- */}
                 <Grid item xs={12}>
-                    <Paper elevation={3} sx={{ p: 3, height: 500, display: 'flex', flexDirection: 'column' }}>
+                    <Paper elevation={3} sx={{ p: 3, height: 600, display: 'flex', flexDirection: 'column' }}>
                         <Typography align="center" variant="h6" gutterBottom>
                             Annual Overview ({selectedYear})
                         </Typography>
+                        
                         <Box sx={{ flexGrow: 1, width: '100%', minHeight: 0 }}>
-                            <ResponsiveContainer>
-                                <BarChart data={barData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart 
+                                    data={barData} 
+                                    // שוליים תחתונים גדולים (bottom: 60) כדי למנוע חיתוך של שמות החודשים
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }} 
+                                >
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" />
+                                    {/* ציר ה-X עם טקסט אלכסוני ופונט קטן כדי למנוע חפיפה */}
+                                    <XAxis 
+                                        dataKey="name" 
+                                        interval={0} 
+                                        angle={-45}  
+                                        textAnchor="end"
+                                        tick={{ fontSize: 12 }} 
+                                    />
                                     <YAxis />
-                                    <Tooltip formatter={(value) => `${value.toFixed(2)}`} />
-                                    <Legend />
-                                    <Bar dataKey="amount" name="Total Cost" fill="#1976d2" barSize={50} />
+                                    <Tooltip formatter={(value) => `${value} ILS`} />
+                                    <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '20px' }} />
+                                    <Bar dataKey="amount" name="Total Cost (ILS)" fill="#1976d2" barSize={60} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </Box>
