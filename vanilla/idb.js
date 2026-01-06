@@ -1,9 +1,10 @@
 // idb.js - Vanilla Version (Final Submission)
+// This file contains the core logic without React dependencies for automated testing.
 
 const idb = {
   db: null,
 
-  // 1. פתיחת מסד הנתונים
+  // 1. Open Database
   openCostsDB: function (databaseName, databaseVersion) {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(databaseName, databaseVersion);
@@ -26,7 +27,7 @@ const idb = {
     });
   },
 
-  // 2. הוספת הוצאה
+  // 2. Add Cost Item
   addCost: function (cost) {
     return new Promise((resolve, reject) => {
       if (!this.db) {
@@ -58,7 +59,7 @@ const idb = {
     });
   },
 
-  // 3. הפקת דוח (כולל לוגיקת המרה בחישוב ה-Total בלבד)
+  // 3. Get Report (Includes Rate Calculation Logic)
   getReport: async function (year, month, targetCurrency) {
     if (!this.db) return { costs: [], total: { currency: targetCurrency, total: 0 }};
 
@@ -71,15 +72,15 @@ const idb = {
       request.onerror = () => reject(request.error);
     });
 
-    // סינון לפי שנה וחודש
+    // Filter by date
     const filteredCosts = allCosts.filter(cost => 
       cost.year === year && cost.month === month
     );
 
-    // --- לוגיקת משיכת שערים (חשוב מאוד גם ב-Vanilla) ---
+    // --- Exchange Rate Logic ---
     let rates = { "USD": 1, "ILS": 3.4, "EURO": 0.7, "GBP": 0.6 };
     
-    // בדיקה אם יש URL ב-localStorage (אם הדפדפן תומך)
+    // Attempt to fetch from LocalStorage if environment supports it
     if (typeof localStorage !== 'undefined') {
         const apiUrl = localStorage.getItem("exchangeRatesUrl");
         if (apiUrl) {
@@ -93,24 +94,25 @@ const idb = {
             }
         }
     }
-    // ---------------------------------------------------
 
     let totalSum = 0;
 
+    // Calculate Total Sum
     filteredCosts.forEach(cost => {
       const rate = rates[cost.currency] || 1; 
-      // המרה לדולר
+      // Convert to Base (USD)
       const costInUSD = cost.sum / rate;
-      // המרה למטבע היעד
+      // Convert to Target
       const costInTarget = costInUSD * rates[targetCurrency];
       
       totalSum += costInTarget;
     });
 
+    // Return Report Object
     return {
       year: year,
       month: month,
-      // כאן אנחנו מחזירים את האובייקטים המקוריים כפי שנדרש במסמך
+      // Return original cost objects as per requirements
       costs: filteredCosts.map(c => ({
           sum: c.sum,
           currency: c.currency,

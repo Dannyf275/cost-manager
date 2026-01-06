@@ -1,81 +1,82 @@
 // src/App.js
 import React, { useEffect, useState } from 'react';
-// ייבוא רכיבי עיצוב מ-MUI (Material UI)
+// Import Material UI components for layout and styling
 import { Container, Typography, Box, CircularProgress, Button, Toolbar, AppBar } from '@mui/material';
-import SettingsIcon from '@mui/icons-material/Settings'; // אייקון גלגל שיניים
-// ייבוא הקבצים הפנימיים שלנו
+import SettingsIcon from '@mui/icons-material/Settings'; // Icon for the settings button
+// Import local components and logic
 import { idb } from './idb';
 import AddCostForm from './AddCostForm';
 import Reports from './Reports';
 import Settings from './Settings';
 
 function App() {
-  // --- ניהול ה-State (המצב) של האפליקציה ---
-
-  // dbReady: האם החיבור למסד הנתונים הצליח?
+  // --- State Management ---
+  
+  // Tracks if the database connection has been established
   const [dbReady, setDbReady] = useState(false);
   
-  // error: שומר הודעת שגיאה אם משהו נכשל בטעינה
+  // Tracks initialization errors
   const [error, setError] = useState(null);
   
-  // updateTrigger: משתנה שמשמש לאיתות לגרפים להתעדכן. 
-  // בכל פעם שנוספת הוצאה, נגדיל את המספר הזה ב-1.
+  // A numeric counter used to trigger re-renders in child components (Reports)
+  // When a cost is added, this number increments, forcing the reports to refresh.
   const [updateTrigger, setUpdateTrigger] = useState(0);
   
-  // openSettings: האם חלון ההגדרות פתוח כרגע?
+  // Controls the visibility of the Settings dialog
   const [openSettings, setOpenSettings] = useState(false);
 
-  // --- אתחול (Initialization) ---
+  // --- Initialization ---
   
-  // useEffect שרץ פעם אחת בטעינת האפליקציה
+  // Effect runs once on mount to open the database connection
   useEffect(() => {
-    // פתיחת מסד הנתונים (גרסה 1)
     idb.openCostsDB("costsdb", 1)
       .then(() => {
-        setDbReady(true); // סימון שה-DB מוכן לעבודה
+        setDbReady(true); // DB is ready for interactions
       })
       .catch((err) => {
-        setError("Error Opening DB: " + err); // הצגת שגיאה למשתמש
+        setError("Error Opening DB: " + err); // Handle failure
       });
   }, []);
 
-  // --- פונקציות עזר ---
+  // --- Handlers ---
 
-  // פונקציה זו מועברת לטופס ונקראת לאחר שנוספה הוצאה בהצלחה
+  // Callback passed to AddCostForm. Called when a new item is successfully added.
   const handleCostAdded = () => {
-    setUpdateTrigger(prev => prev + 1); // רענון הגרפים
+    setUpdateTrigger(prev => prev + 1); // Increment trigger to refresh charts
   };
 
-  // --- תצוגה מותנית (לפני שהאפליקציה עולה) ---
+  // --- Conditional Rendering ---
 
+  // If there is an error, display it and stop rendering
   if (error) return <Typography color="error">{error}</Typography>;
+  
+  // If DB is connecting, show a loading spinner
   if (!dbReady) return <Box sx={{ display:'flex', justifyContent:'center', mt:10 }}><CircularProgress /></Box>;
 
-  // --- התצוגה הראשית ---
+  // --- Main Render ---
   return (
     <>
-      {/* סרגל עליון (AppBar) */}
+      {/* Top Navigation Bar */}
       <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Cost Manager
           </Typography>
-          {/* כפתור הגדרות */}
+          {/* Settings Button */}
           <Button color="inherit" startIcon={<SettingsIcon />} onClick={() => setOpenSettings(true)}>
             Settings
           </Button>
         </Toolbar>
       </AppBar>
 
-      {/* Container הראשי:
-          הגדרת maxWidth="xl" מאפשרת לאתר להתפרס לרוחב רחב מאוד (כמעט מלא),
-          מה שנותן לגרפים הרבה מקום לנשום.
+      {/* Main Layout Container. 
+          maxWidth="xl" ensures the content spans almost the full width of the screen,
+          preventing charts from appearing cramped.
       */}
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         
-        {/* מרכוז הטופס:
-            אנו עוטפים את הטופס כדי להגביל את רוחבו ל-800px ולמרכז אותו.
-            זה אסתטי יותר מאשר טופס שנמתח מקצה לקצה.
+        {/* Form Container:
+            Centered and restricted to 800px width for better aesthetics.
         */}
         <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <Box sx={{ width: '100%', maxWidth: '800px' }}>
@@ -83,18 +84,17 @@ function App() {
             </Box>
         </Box>
         
-        {/* מרווח אנכי בין הטופס לגרפים */}
+        {/* Vertical spacer */}
         <Box sx={{ my: 6 }} /> 
         
-        {/* קומפוננטת הגרפים:
-            היא תקבל את הרוחב המלא של ה-Container.
-            אנו מעבירים לה את refreshTrigger כדי שתדע מתי להתעדכן.
+        {/* Reports Section:
+            Passes the refreshTrigger so charts update automatically on data changes.
         */}
         <Reports refreshTrigger={updateTrigger} />
 
       </Container>
 
-      {/* חלון ההגדרות (נסתר כברירת מחדל) */}
+      {/* Settings Dialog Component */}
       <Settings open={openSettings} onClose={() => setOpenSettings(false)} />
     </>
   );

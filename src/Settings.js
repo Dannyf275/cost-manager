@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Typography } from '@mui/material';
 
-// קומפוננטה המקבלת פרופ האם היא פתוחה (open) ופונקציה לסגירה (onClose)
+// Settings Component: Allows user to define external API URL for rates
 export default function Settings({ open, onClose }) {
   const [url, setUrl] = useState('');
 
-  // בעת פתיחת החלון, נבדוק אם יש כבר כתובת שמורה ב-localStorage
+  // Load saved URL from LocalStorage when dialog opens
   useEffect(() => {
     const savedUrl = localStorage.getItem("exchangeRatesUrl");
     if (savedUrl) {
@@ -14,13 +14,12 @@ export default function Settings({ open, onClose }) {
     }
   }, [open]);
 
-  // שמירת הכתובת כאשר המשתמש לוחץ על Save
+  // Save the URL to LocalStorage
   const handleSave = () => {
     if (url) {
-      // שמירה באחסון המקומי של הדפדפן
       localStorage.setItem("exchangeRatesUrl", url);
       alert("URL saved successfully!");
-      onClose(); // סגירת החלון
+      onClose(); // Close dialog
     }
   };
 

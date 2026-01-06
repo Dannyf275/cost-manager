@@ -3,46 +3,46 @@ import React, { useState } from 'react';
 import { Box, TextField, Button, MenuItem, Typography, Paper, Grid, Alert, Snackbar } from '@mui/material';
 import { idb } from './idb';
 
-// רשימות קבועות עבור תיבות הבחירה
+// Constants for dropdown options
 const CATEGORIES = ['FOOD', 'HEALTH', 'EDUCATION', 'TRAVEL', 'HOUSING', 'OTHER'];
 const CURRENCIES = ['USD', 'ILS', 'GBP', 'EURO'];
 
 export default function AddCostForm({ onCostAdded }) {
-  // State עבור כל שדה בטופס
+  // --- Local State for Form Fields ---
   const [sum, setSum] = useState('');
   const [category, setCategory] = useState('FOOD');
   const [currency, setCurrency] = useState('USD');
   const [description, setDescription] = useState('');
   
-  // State להודעת האישור הקופצת (Snackbar)
+  // State for the success notification popup
   const [openAlert, setOpenAlert] = useState(false);
 
-  // פונקציה המטפלת בשליחת הטופס
+  // --- Form Submission Handler ---
   const handleSubmit = async (e) => {
-    e.preventDefault(); // מניעת רענון אוטומטי של הדף
+    e.preventDefault(); // Prevent page reload
     
-    // בדיקה ששדות החובה מולאו
+    // Basic Validation
     if (!sum || !description) {
       alert("Please fill in all fields");
       return;
     }
 
     try {
-      // קריאה לפונקציה ב-idb.js להוספת הרשומה
+      // Call DAL to add cost to IndexedDB
       await idb.addCost({
-        sum: Number(sum), // המרה למספר
+        sum: Number(sum), // Convert string input to number
         category,
         currency,
         description
       });
 
-      // איפוס השדות לאחר ההוספה
+      // Reset form fields upon success
       setSum('');
       setDescription('');
       setCategory('FOOD');
-      setOpenAlert(true); // הצגת הודעת הצלחה
+      setOpenAlert(true); // Show success message
       
-      // הפעלת ה-Callback לעדכון שאר האפליקציה (הגרפים)
+      // Trigger parent update (refresh charts)
       if (onCostAdded) onCostAdded();
 
     } catch (error) {
@@ -57,36 +57,36 @@ export default function AddCostForm({ onCostAdded }) {
       
       <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
         <Grid container spacing={2}>
-          {/* שדה סכום */}
+          {/* Sum Input */}
           <Grid item xs={12} sm={6}>
             <TextField 
                 fullWidth label="Sum" type="number" 
                 value={sum} onChange={(e) => setSum(e.target.value)} required 
             />
           </Grid>
-          {/* שדה מטבע */}
+          {/* Currency Select */}
           <Grid item xs={12} sm={6}>
             <TextField select fullWidth label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
               {CURRENCIES.map((opt) => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
             </TextField>
           </Grid>
-          {/* שדה קטגוריה */}
+          {/* Category Select */}
           <Grid item xs={12}>
             <TextField select fullWidth label="Category" value={category} onChange={(e) => setCategory(e.target.value)}>
               {CATEGORIES.map((opt) => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
             </TextField>
           </Grid>
-          {/* שדה תיאור */}
+          {/* Description Input */}
           <Grid item xs={12}>
             <TextField fullWidth label="Description" value={description} onChange={(e) => setDescription(e.target.value)} required />
           </Grid>
         </Grid>
         
-        {/* כפתור הוספה */}
+        {/* Submit Button */}
         <Button type="submit" fullWidth variant="contained" sx={{ mt: 3 }}>Add Cost</Button>
       </Box>
 
-      {/* רכיב הודעה קופצת להצלחה */}
+      {/* Success Notification */}
       <Snackbar open={openAlert} autoHideDuration={3000} onClose={() => setOpenAlert(false)}>
         <Alert severity="success">Item added successfully!</Alert>
       </Snackbar>
