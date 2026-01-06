@@ -1,10 +1,15 @@
-// idb.js - Vanilla Version (Final Submission)
-// This file contains the core logic without React dependencies for automated testing.
+// idb.js (Vanilla)
+// Standalone version for testing logic without module system.
 
+// Define exception locally for standalone use.
+function CostManagerException(message) {
+    this.message = message;
+}
+
+// Define the idb object globally or as a const.
 const idb = {
   db: null,
 
-  // 1. Open Database
   openCostsDB: function (databaseName, databaseVersion) {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(databaseName, databaseVersion);
@@ -22,16 +27,15 @@ const idb = {
       };
 
       request.onerror = (event) => {
-        reject("Error opening database: " + event.target.error);
+        reject(new CostManagerException("Error opening database: " + event.target.error));
       };
     });
   },
 
-  // 2. Add Cost Item
   addCost: function (cost) {
     return new Promise((resolve, reject) => {
       if (!this.db) {
-        reject("Database is not open.");
+        reject(new CostManagerException("Database is not open."));
         return;
       }
       const now = new Date();
@@ -54,12 +58,25 @@ const idb = {
       };
 
       request.onerror = (event) => {
-        reject("Error adding cost: " + event.target.error);
+        reject(new CostManagerException("Error adding cost: " + event.target.error));
       };
     });
   },
 
-  // 3. Get Report (Includes Rate Calculation Logic)
+  deleteCost: function(id) {
+    return new Promise((resolve, reject) => {
+        if (!this.db) {
+            reject(new CostManagerException("Database not open"));
+            return;
+        }
+        const transaction = this.db.transaction(["costs"], "readwrite");
+        const store = transaction.objectStore("costs");
+        const request = store.delete(id);
+        request.onsuccess = () => resolve(true);
+        request.onerror = (e) => reject(new CostManagerException("Error deleting cost"));
+    });
+  },
+
   getReport: async function (year, month, targetCurrency) {
     if (!this.db) return { costs: [], total: { currency: targetCurrency, total: 0 }};
 
@@ -69,24 +86,21 @@ const idb = {
     const allCosts = await new Promise((resolve, reject) => {
       const request = store.getAll();
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(new CostManagerException(request.error));
     });
 
-    // Filter by date
     const filteredCosts = allCosts.filter(cost => 
       cost.year === year && cost.month === month
     );
 
-    // --- Exchange Rate Logic ---
     let rates = { "USD": 1, "ILS": 3.4, "EURO": 0.7, "GBP": 0.6 };
     
-    // Attempt to fetch from LocalStorage if environment supports it
     if (typeof localStorage !== 'undefined') {
         const apiUrl = localStorage.getItem("exchangeRatesUrl");
         if (apiUrl) {
             try {
                 const response = await fetch(apiUrl);
-                if (response.ok) {
+                if (response.status === 200) {
                     rates = await response.json();
                 }
             } catch (e) { 
@@ -97,22 +111,17 @@ const idb = {
 
     let totalSum = 0;
 
-    // Calculate Total Sum
     filteredCosts.forEach(cost => {
       const rate = rates[cost.currency] || 1; 
-      // Convert to Base (USD)
       const costInUSD = cost.sum / rate;
-      // Convert to Target
       const costInTarget = costInUSD * rates[targetCurrency];
       
       totalSum += costInTarget;
     });
 
-    // Return Report Object
     return {
       year: year,
       month: month,
-      // Return original cost objects as per requirements
       costs: filteredCosts.map(c => ({
           sum: c.sum,
           currency: c.currency,

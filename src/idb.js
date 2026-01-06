@@ -1,100 +1,139 @@
-// src/idb.js
-// This file acts as the Data Access Layer (DAL) for the application.
-// It wraps IndexedDB's event-based API in Promises to allow for modern async/await syntax.
+// idb.js
+// Data Access Layer (DAL) responsible for IndexedDB interactions and logic.
+// Follows strict rules: semicolons, const/let, and custom exceptions.
 
+// Import the custom exception class.
+import CostManagerException from './cost_manager_exception';
+
+// Define the namespace object for database operations.
 export const idb = {
-  // Holds the reference to the open database connection
+  // Property to hold the active database connection.
   db: null,
 
   /**
    * Opens the IndexedDB database.
-   * If the database or object store does not exist, it creates them.
    * @param {string} databaseName - The name of the database.
    * @param {number} databaseVersion - The version of the database.
-   * @returns {Promise} - Resolves with the idb object instance.
+   * @returns {Promise} - Resolves with the idb instance upon success.
    */
   openCostsDB: function (databaseName, databaseVersion) {
+    // Return a new Promise to handle the async database opening operation.
     return new Promise((resolve, reject) => {
-      // Attempt to open the database
+      // Attempt to open the database.
       const request = indexedDB.open(databaseName, databaseVersion);
 
-      // This event triggers only if the database is being created or the version is higher
+      // Event handler for database upgrades (creation or version change).
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
-        // Check if the 'costs' object store (table) already exists
+        // Check if the 'costs' object store exists; if not, create it.
         if (!db.objectStoreNames.contains("costs")) {
-          // Create the object store with an auto-incrementing primary key 'id'
+          // Create object store with auto-incrementing key 'id'.
           db.createObjectStore("costs", { keyPath: "id", autoIncrement: true });
         }
       };
 
-      // Event triggered when the database opens successfully
+      // Event handler for successful database opening.
       request.onsuccess = (event) => {
-        this.db = event.target.result; // Store the db connection
-        resolve(this); // Resolve the promise to allow chaining
+        // Store the result (database connection) in the 'db' property.
+        this.db = event.target.result;
+        // Resolve the promise with the current 'idb' object.
+        resolve(this);
       };
 
-      // Event triggered if there is an error opening the database
+      // Event handler for errors during opening.
       request.onerror = (event) => {
-        reject("Error opening database: " + event.target.error);
+        // Reject with a custom CostManagerException.
+        reject(new CostManagerException("Error opening database: " + event.target.error));
       };
     });
   },
 
   /**
-   * Adds a new cost item to the 'costs' object store.
-   * @param {Object} cost - The cost object containing sum, currency, category, etc.
-   * @returns {Promise} - Resolves with the added cost object.
+   * Adds a cost item to the database.
+   * @param {Object} cost - The cost data.
+   * @returns {Promise} - Resolves with the added cost item.
    */
   addCost: async function (cost) {
-    // Validation: Ensure database is open
-    if (!this.db) throw new Error("Database is not open.");
+    // Validate that the database connection is open.
+    if (!this.db) {
+        throw new CostManagerException("Database is not open.");
+    }
 
+    // Return a Promise for the add transaction.
     return new Promise((resolve, reject) => {
       const now = new Date();
-      // Prepare the object for storage, adding derived date fields for easier querying later
+      // Create the cost object to be stored, derived from input.
       const costItem = {
         sum: cost.sum,
         currency: cost.currency,
         category: cost.category,
         description: cost.description,
-        date: now,           // Full Date object
-        month: now.getMonth() + 1, // Store month (1-12) explicitly for filtering
-        year: now.getFullYear(),   // Store year explicitly for filtering
+        date: now,
+        month: now.getMonth() + 1, // Store month (1-12) explicitly.
+        year: now.getFullYear(),   // Store year explicitly.
       };
 
-      // Create a read-write transaction for the 'costs' store
+      // Create a read-write transaction on the 'costs' store.
       const transaction = this.db.transaction(["costs"], "readwrite");
       const store = transaction.objectStore("costs");
-      
-      // Perform the add operation
+      // Add the item to the store.
       const request = store.add(costItem);
 
-      request.onsuccess = () => resolve(costItem); // Return the added item on success
-      request.onerror = (event) => reject("Error adding cost: " + event.target.error);
+      // Resolve on success.
+      request.onsuccess = () => resolve(costItem);
+      // Reject on error with custom exception.
+      request.onerror = (event) => {
+          reject(new CostManagerException("Error adding cost: " + event.target.error));
+      };
     });
   },
 
   /**
-   * Internal helper function to fetch exchange rates.
-   * Tries to fetch from a user-defined URL (localStorage), otherwise uses defaults.
-   * @returns {Promise<Object>} - An object containing currency rates.
+   * Deletes a cost item by ID.
+   * @param {number} id - The ID of the cost to delete.
+   * @returns {Promise} - Resolves true on success.
+   */
+  deleteCost: function(id) {
+    // Return a Promise for the delete transaction.
+    return new Promise((resolve, reject) => {
+        // Validate DB connection.
+        if (!this.db) {
+            reject(new CostManagerException("Database not open"));
+            return;
+        }
+        // Create transaction.
+        const transaction = this.db.transaction(["costs"], "readwrite");
+        const store = transaction.objectStore("costs");
+        // Perform delete.
+        const request = store.delete(id);
+
+        // Resolve on success.
+        request.onsuccess = () => resolve(true);
+        // Reject on error.
+        request.onerror = (e) => reject(new CostManagerException("Error deleting cost"));
+    });
+  },
+
+  /**
+   * Helper to get exchange rates from server or defaults.
+   * @returns {Promise<Object>} - The rates object.
    */
   _getRates: async function() {
-      // Default hardcoded rates (Base: USD = 1)
+      // Define default rates using object literal.
       let rates = { "USD": 1, "ILS": 3.4, "EURO": 0.7, "GBP": 0.6 };
       
-      // Check if the user has saved a custom API URL in LocalStorage
+      // Check local storage for a custom URL.
       const apiUrl = localStorage.getItem("exchangeRatesUrl");
+      
       if (apiUrl) {
           try {
-              // Attempt to fetch fresh rates from the network
+              // Fetch rates from the URL.
               const response = await fetch(apiUrl);
-              if (response.ok) {
-                  rates = await response.json(); // Update rates with server data
+              // Verify status code is exactly 200 as per language rules.
+              if (response.status === 200) {
+                  rates = await response.json();
               }
           } catch (error) { 
-              // If fetch fails, silently fall back to default rates
               console.error("Rate fetch error, using defaults", error); 
           }
       }
@@ -102,110 +141,122 @@ export const idb = {
   },
 
   /**
-   * Retrieves all costs for a specific year and calculates their value in a target currency.
-   * Used primarily for the Bar Chart.
-   * @param {number} year - The year to filter by.
-   * @param {string} targetCurrency - The currency to convert amounts to (default: USD).
-   * @returns {Promise<Array>} - Array of cost objects with a new 'calculatedSum' field.
+   * Retrieves costs by year with normalized currency calculation.
+   * @param {number} year - The year to filter.
+   * @param {string} targetCurrency - The currency to calculate sums in.
+   * @returns {Promise<Array>} - Array of costs with calculatedSum.
    */
   getCostsByYear: async function(year, targetCurrency = "USD") {
+    // Return empty array if DB not initialized.
     if (!this.db) return []; 
     
-    // Create a read-only transaction for fetching data
+    // Create read-only transaction.
     const transaction = this.db.transaction(["costs"], "readonly");
     const store = transaction.objectStore("costs");
     
-    // Fetch all records from the store
+    // Fetch all records.
     const allCosts = await new Promise((resolve, reject) => {
       const request = store.getAll();
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(new CostManagerException(request.error));
     });
 
-    // Filter results in memory for the requested year
+    // Filter costs by year.
     const yearlyCosts = allCosts.filter(c => c.year === year);
-    
-    // Fetch current exchange rates
+    // Get exchange rates asynchronously.
     const rates = await this._getRates();
 
-    // Map over costs to calculate the normalized sum
+    // Map results to include the calculated sum.
     return yearlyCosts.map(cost => {
-        // Determine rate for the cost's original currency
         const rate = rates[cost.currency] || 1;
-        
-        // Convert to Base (USD) then to Target Currency
+        // Normalize to base (USD) then to target.
         const valInUSD = cost.sum / rate;
         const valInTarget = valInUSD * rates[targetCurrency];
         
-        // Return cost object extended with the calculated value
         return {
             ...cost,
-            calculatedSum: valInTarget // This field is used by the charts
+            calculatedSum: valInTarget 
         };
     });
   },
 
   /**
-   * Generates a detailed monthly report.
-   * Includes normalization of all costs to the target currency.
-   * @param {number} year - The year.
-   * @param {number} month - The month.
-   * @param {string} targetCurrency - The currency for the report totals.
-   * @returns {Promise<Object>} - Object containing the costs array and total sum.
+   * Generates a monthly report.
+   * @param {number} year 
+   * @param {number} month 
+   * @param {string} targetCurrency 
+   * @returns {Promise<Object>}
    */
   getReport: async function (year, month, targetCurrency) {
+    // Return empty structure if DB not open.
     if (!this.db) return { costs: [], total: { currency: targetCurrency, total: 0 }};
 
     const transaction = this.db.transaction(["costs"], "readonly");
     const store = transaction.objectStore("costs");
     
-    // Fetch all data
+    // Fetch all costs.
     const allCosts = await new Promise((resolve, reject) => {
       const request = store.getAll();
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(new CostManagerException(request.error));
     });
 
-    // Filter for the specific month and year
+    // Filter by year and month.
     const filteredCosts = allCosts.filter(cost => 
       cost.year === year && cost.month === month
     );
 
     const rates = await this._getRates();
-
     let totalSum = 0;
 
-    // Process each cost item to calculate values
+    // Calculate sums for each item.
     const costsWithCalculation = filteredCosts.map(cost => {
       const currentRate = rates[cost.currency] || 1; 
-      
-      // Perform conversion
       const costInUSD = cost.sum / currentRate;
       const costInTarget = costInUSD * rates[targetCurrency];
       
-      // Accumulate total
       totalSum += costInTarget;
 
-      // Return the structure required by the project specs, plus calculatedSum for internal UI use
       return {
           sum: cost.sum,
           currency: cost.currency,
           category: cost.category,
           description: cost.description,
           date: { day: cost.date ? cost.date.getDate() : 1 },
-          calculatedSum: costInTarget 
+          calculatedSum: costInTarget
       };
     });
 
-    // Return the final report object
+    // Return final report object.
     return {
       year: year,
       month: month,
       costs: costsWithCalculation,
       total: {
         currency: targetCurrency,
-        total: parseFloat(totalSum.toFixed(2)) // Round to 2 decimal places
+        total: parseFloat(totalSum.toFixed(2))
       }
     };
+  },
+
+  /**
+   * Retrieves all costs (for history table).
+   * @returns {Promise<Array>}
+   */
+  getAllCosts: async function() {
+    if (!this.db) return [];
+    
+    const transaction = this.db.transaction(["costs"], "readonly");
+    const store = transaction.objectStore("costs");
+    
+    return new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => {
+            // Sort results by date descending.
+            const result = request.result.sort((a, b) => b.date - a.date);
+            resolve(result);
+        };
+        request.onerror = () => reject(new CostManagerException(request.error));
+    });
   }
 };

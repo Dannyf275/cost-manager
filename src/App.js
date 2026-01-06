@@ -1,100 +1,154 @@
-// src/App.js
+// app.js
+// Main Application Component.
+// Coordinates UI layout, state, animations, and data flow.
+
 import React, { useEffect, useState } from 'react';
-// Import Material UI components for layout and styling
-import { Container, Typography, Box, CircularProgress, Button, Toolbar, AppBar } from '@mui/material';
-import SettingsIcon from '@mui/icons-material/Settings'; // Icon for the settings button
-// Import local components and logic
+import { Container, Typography, Box, CircularProgress, Button, Toolbar, AppBar, IconButton } from '@mui/material';
+import SettingsIcon from '@mui/icons-material/Settings';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import { motion } from 'framer-motion';
+
+// Import local components using lowercase filenames.
 import { idb } from './idb';
-import AddCostForm from './AddCostForm';
-import Reports from './Reports';
-import Settings from './Settings';
+import AddCostForm from './add_cost_form';
+import Reports from './reports';
+import Settings from './settings';
+import CostTable from './cost_table';
+
+/**
+ * AnimatedSection Component.
+ * Wraps children to provide scroll-triggered fade/scale animations.
+ * @param {Object} props - Component props containing children.
+ */
+const AnimatedSection = ({ children }) => {
+  return (
+    <motion.div
+      // Start state: invisible and shifted down.
+      initial={{ opacity: 0, y: 50, scale: 0.95 }}
+      // Visible state: opaque and in position.
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      // Exit state (when scrolling out): fade out.
+      exit={{ opacity: 0, y: 20, scale: 0.95 }}
+      // Viewport config: trigger every time (once: false) when 30% visible.
+      viewport={{ once: false, amount: 0.3 }}
+      // Transition config: smooth ease-out.
+      transition={{ duration: 0.6, ease: "easeOut" }}
+    >
+      {children}
+    </motion.div>
+  );
+};
 
 function App() {
-  // --- State Management ---
-  
-  // Tracks if the database connection has been established
+  // State for DB readiness.
   const [dbReady, setDbReady] = useState(false);
-  
-  // Tracks initialization errors
+  // State for error handling.
   const [error, setError] = useState(null);
-  
-  // A numeric counter used to trigger re-renders in child components (Reports)
-  // When a cost is added, this number increments, forcing the reports to refresh.
+  // State trigger to force updates in child components.
   const [updateTrigger, setUpdateTrigger] = useState(0);
-  
-  // Controls the visibility of the Settings dialog
+  // State for Settings dialog visibility.
   const [openSettings, setOpenSettings] = useState(false);
 
-  // --- Initialization ---
-  
-  // Effect runs once on mount to open the database connection
+  // Initialize DB on mount.
   useEffect(() => {
     idb.openCostsDB("costsdb", 1)
       .then(() => {
-        setDbReady(true); // DB is ready for interactions
+        setDbReady(true);
       })
       .catch((err) => {
-        setError("Error Opening DB: " + err); // Handle failure
+        // Display error message from exception.
+        setError("Error Opening DB: " + err.message);
       });
   }, []);
 
-  // --- Handlers ---
-
-  // Callback passed to AddCostForm. Called when a new item is successfully added.
-  const handleCostAdded = () => {
-    setUpdateTrigger(prev => prev + 1); // Increment trigger to refresh charts
+  // Handler to refresh data when cost is added/deleted.
+  const handleDataChange = () => {
+    setUpdateTrigger(prev => prev + 1);
   };
 
-  // --- Conditional Rendering ---
-
-  // If there is an error, display it and stop rendering
-  if (error) return <Typography color="error">{error}</Typography>;
+  // Render error state if needed.
+  if (error) return <Typography color="error" align="center" sx={{ mt: 4 }}>{error}</Typography>;
   
-  // If DB is connecting, show a loading spinner
-  if (!dbReady) return <Box sx={{ display:'flex', justifyContent:'center', mt:10 }}><CircularProgress /></Box>;
+  // Render loading state while DB opens.
+  if (!dbReady) return (
+    <Box sx={{ display:'flex', justifyContent:'center', alignItems: 'center', height: '100vh' }}>
+      <CircularProgress size={60} thickness={4} />
+    </Box>
+  );
 
-  // --- Main Render ---
   return (
     <>
-      {/* Top Navigation Bar */}
-      <AppBar position="static">
+      {/* Header Bar with Glassmorphism effect */}
+      <AppBar 
+        position="sticky" 
+        elevation={0}
+        sx={{
+          background: 'rgba(25, 118, 210, 0.75)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          zIndex: 1100
+        }}
+      >
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <IconButton edge="start" color="inherit" aria-label="logo" sx={{ mr: 1 }}>
+            <AccountBalanceWalletIcon fontSize="large" />
+          </IconButton>
+          
+          <Typography 
+            variant="h5" 
+            component="div" 
+            sx={{ 
+              flexGrow: 1, 
+              fontWeight: 'bold', 
+              letterSpacing: '1px', 
+              textShadow: '0 2px 4px rgba(0,0,0,0.2)' 
+            }}
+          >
             Cost Manager
           </Typography>
-          {/* Settings Button */}
-          <Button color="inherit" startIcon={<SettingsIcon />} onClick={() => setOpenSettings(true)}>
+
+          <Button 
+            color="inherit" 
+            startIcon={<SettingsIcon />} 
+            onClick={() => setOpenSettings(true)}
+            sx={{ 
+              borderRadius: '20px', 
+              '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' }
+            }}
+          >
             Settings
           </Button>
         </Toolbar>
       </AppBar>
 
-      {/* Main Layout Container. 
-          maxWidth="xl" ensures the content spans almost the full width of the screen,
-          preventing charts from appearing cramped.
-      */}
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-        
-        {/* Form Container:
-            Centered and restricted to 800px width for better aesthetics.
-        */}
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-            <Box sx={{ width: '100%', maxWidth: '800px' }}>
-                <AddCostForm onCostAdded={handleCostAdded} />
+      {/* Main Content Area */}
+      <Container maxWidth="xl" sx={{ mt: 4, mb: 15 }}>
+          {/* Animated Form Section */}
+          <AnimatedSection>
+            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                <Box sx={{ width: '100%', maxWidth: '800px' }}>
+                    <AddCostForm onCostAdded={handleDataChange} />
+                </Box>
             </Box>
-        </Box>
-        
-        {/* Vertical spacer */}
-        <Box sx={{ my: 6 }} /> 
-        
-        {/* Reports Section:
-            Passes the refreshTrigger so charts update automatically on data changes.
-        */}
-        <Reports refreshTrigger={updateTrigger} />
+          </AnimatedSection>
+          
+          <Box sx={{ my: 8 }} /> 
+          
+          {/* Animated Reports Section */}
+          <AnimatedSection>
+            <Reports refreshTrigger={updateTrigger} />
+          </AnimatedSection>
+
+          <Box sx={{ my: 8 }} /> 
+
+          {/* Animated History Table Section */}
+          <AnimatedSection>
+            <CostTable refreshTrigger={updateTrigger} onCostDeleted={handleDataChange} />
+          </AnimatedSection>
 
       </Container>
 
-      {/* Settings Dialog Component */}
+      {/* Settings Dialog */}
       <Settings open={openSettings} onClose={() => setOpenSettings(false)} />
     </>
   );

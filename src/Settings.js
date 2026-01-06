@@ -1,12 +1,13 @@
-// src/Settings.js
+// settings.js
+// Dialog for configuring the exchange rates API URL.
+
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Typography } from '@mui/material';
 
-// Settings Component: Allows user to define external API URL for rates
 export default function Settings({ open, onClose }) {
   const [url, setUrl] = useState('');
 
-  // Load saved URL from LocalStorage when dialog opens
+  // Load saved URL from storage.
   useEffect(() => {
     const savedUrl = localStorage.getItem("exchangeRatesUrl");
     if (savedUrl) {
@@ -14,12 +15,11 @@ export default function Settings({ open, onClose }) {
     }
   }, [open]);
 
-  // Save the URL to LocalStorage
   const handleSave = () => {
     if (url) {
       localStorage.setItem("exchangeRatesUrl", url);
       alert("URL saved successfully!");
-      onClose(); // Close dialog
+      onClose();
     }
   };
 
