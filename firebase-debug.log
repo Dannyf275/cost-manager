@@ -1,0 +1,19 @@
+[debug] [2026-01-12T12:59:55.889Z] ----------------------------------------------------------------------
+[debug] [2026-01-12T12:59:55.892Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\danny\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init
+[debug] [2026-01-12T12:59:55.892Z] CLI Version:   15.2.1
+[debug] [2026-01-12T12:59:55.892Z] Platform:      win32
+[debug] [2026-01-12T12:59:55.893Z] Node Version:  v24.11.1
+[debug] [2026-01-12T12:59:55.893Z] Time:          Mon Jan 12 2026 14:59:55 GMT+0200 (Israel Standard Time)
+[debug] [2026-01-12T12:59:55.893Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  D:\לימודים - CS\שנה ג\פיתוח צד לקוח\Cost Manager Front End\cost-manager
+
