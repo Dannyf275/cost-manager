@@ -93,6 +93,6 @@ It correctly bundles React in production mode and optimizes the build for the be
 
 ## Authors
 **Daniel Firley**
-**Michal Berlin**
+**Mihal Berlin**
 **Linoy Abramovitch**
 Cost Manager Client Side Project
